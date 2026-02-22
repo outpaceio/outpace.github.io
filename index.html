@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Outpace</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #02040a;
+      --ink: #eeeae0;
+      --accent: #ff4d1c;
+      --teal: #00e5c8;
+      --blue: #0ea5e9;
+      --purple: #a855f7;
+      --muted: #6b6978;
+      --border: rgba(255,255,255,0.06);
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:var(--bg);color:var(--ink);
+      font-family:'DM Sans',sans-serif;
+      min-height:100vh;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      overflow:hidden;position:relative;
+    }
+
+    /* Master canvas */
+    #masterCanvas{position:fixed;inset:0;z-index:1;pointer-events:none;}
+
+    .orb{position:fixed;border-radius:50%;filter:blur(140px);pointer-events:none;z-index:0;}
+    @keyframes drift{
+      from{transform:translate(0,0) scale(1);}
+      to{transform:translate(35px,45px) scale(1.07);}
+    }
+
+    /* Radial vignette */
+    .vignette{
+      position:fixed;inset:0;z-index:2;pointer-events:none;
+      background:radial-gradient(ellipse 70% 70% at 50% 50%,transparent 30%,rgba(2,4,10,0.92) 100%);
+    }
+
+    /* Scanline overlay */
+    .scanlines{
+      position:fixed;inset:0;z-index:3;pointer-events:none;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+    }
+
+    /* ── CONTENT ── */
+    main{
+      position:relative;z-index:10;
+      display:flex;flex-direction:column;align-items:center;
+      text-align:center;padding:2rem;gap:0;
+    }
+
+    .logo{
+      font-family:'Bebas Neue',sans-serif;
+      font-size:clamp(1.6rem,3vw,2.2rem);
+      letter-spacing:0.22em;
+      opacity:0;animation:fadeUp 0.8s 0.2s forwards;
+      margin-bottom:3rem;
+    }
+    .logo span{color:var(--accent);}
+
+    /* Animated system status row */
+    .sys-row{
+      display:flex;gap:1.5rem;margin-bottom:2.8rem;flex-wrap:wrap;justify-content:center;
+      opacity:0;animation:fadeUp 0.7s 0.5s forwards;
+    }
+    .sys-chip{
+      display:flex;align-items:center;gap:0.4rem;
+      font-family:'Share Tech Mono',monospace;font-size:0.62rem;
+      letter-spacing:0.1em;color:var(--muted);
+      border:1px solid var(--border);padding:0.28rem 0.7rem;border-radius:2px;
+    }
+    .sys-chip .dot{width:5px;height:5px;border-radius:50%;}
+    .dot-teal{background:var(--teal);animation:blink-dot 1.2s ease infinite;}
+    .dot-blue{background:var(--blue);animation:blink-dot 1.8s ease infinite;}
+    .dot-purple{background:var(--purple);animation:blink-dot 2.4s ease infinite;}
+    .dot-orange{background:var(--accent);animation:blink-dot 0.9s ease infinite;}
+    @keyframes blink-dot{0%,100%{opacity:1}50%{opacity:0.25}}
+
+    .headline{
+      font-family:'Bebas Neue',sans-serif;
+      font-size:clamp(3.8rem,11vw,10.5rem);
+      line-height:0.88;letter-spacing:0.025em;
+      opacity:0;animation:fadeUp 1s 0.4s forwards;
+      text-shadow:0 0 80px rgba(255,77,28,0.15);
+    }
+    .headline em{
+      font-family:'DM Serif Display',serif;
+      font-style:italic;color:var(--accent);display:block;
+    }
+
+    .divider{
+      width:1px;height:55px;margin:2.5rem auto;
+      background:linear-gradient(to bottom,transparent,var(--teal),transparent);
+      opacity:0;animation:fadeUp 0.6s 0.8s forwards;
+    }
+
+    .banner{
+      font-family:'DM Serif Display',serif;font-style:italic;
+      font-size:clamp(1.1rem,2.3vw,1.7rem);line-height:1.65;
+      max-width:32ch;
+      opacity:0;animation:fadeUp 0.9s 1s forwards;
+    }
+    .banner strong{
+      font-style:normal;font-family:'Bebas Neue',sans-serif;
+      font-size:1.15em;letter-spacing:0.1em;
+      color:var(--teal);display:block;margin-top:0.5rem;
+    }
+    .cursor{
+      display:inline-block;width:3px;height:0.85em;
+      background:var(--accent);vertical-align:middle;margin-left:4px;
+      animation:blink 1s step-end infinite;
+    }
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+    /* Live terminal line */
+    .terminal{
+      margin-top:2rem;
+      font-family:'Share Tech Mono',monospace;font-size:0.7rem;
+      color:var(--teal);letter-spacing:0.08em;
+      opacity:0;animation:fadeUp 0.7s 1.2s forwards;
+      min-height:1.2em;
+    }
+    .terminal span{color:var(--accent);}
+
+    .contact{
+      margin-top:1.8rem;
+      opacity:0;animation:fadeUp 0.8s 1.4s forwards;
+      position:relative;z-index:20;
+    }
+    .contact p{
+      font-size:0.72rem;letter-spacing:0.18em;text-transform:uppercase;
+      color:var(--muted);margin-bottom:0.6rem;
+    }
+    .contact-box{
+      display:inline-flex;align-items:center;gap:0.8rem;
+      padding:0.7rem 1.4rem;
+      border:1px solid rgba(0,229,200,0.2);
+      border-radius:3px;
+      background:rgba(0,229,200,0.04);
+      backdrop-filter:blur(12px);
+    }
+    .contact-icon{font-size:0.9rem;opacity:0.7;}
+    .contact a{
+      color:var(--teal);text-decoration:none;font-size:0.88rem;
+      font-weight:500;letter-spacing:0.05em;
+      font-family:'Share Tech Mono',monospace;
+      transition:color 0.2s,text-shadow 0.2s;
+    }
+    .contact a:hover{
+      color:#fff;
+      text-shadow:0 0 20px var(--teal);
+    }
+
+
+    .quip{
+      font-family:'Share Tech Mono',monospace;
+      font-size:clamp(0.65rem,1.2vw,0.8rem);
+      color:var(--muted);
+      letter-spacing:0.06em;
+      margin-top:0.8rem;
+      opacity:0;animation:fadeUp 0.7s 0.65s forwards;
+      min-height:1.2em;
+      transition:opacity 0.3s;
+    }
+
+    footer{
+      position:fixed;bottom:0;left:0;right:0;z-index:20;
+      text-align:center;padding:1.1rem;
+      font-size:0.63rem;letter-spacing:0.14em;text-transform:uppercase;
+      color:var(--muted);border-top:1px solid var(--border);
+      opacity:0;animation:fadeUp 0.7s 1.7s forwards;
+      background:rgba(2,4,10,0.8);backdrop-filter:blur(12px);
+    }
+
+    @keyframes fadeUp{
+      from{opacity:0;transform:translateY(22px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="masterCanvas"></canvas>
+<div class="vignette"></div>
+<div class="scanlines"></div>
+<div class="orb orb1" style="width:650px;height:650px;top:-180px;right:-180px;background:rgba(255,77,28,0.14);animation:drift 16s ease-in-out infinite alternate;"></div>
+<div class="orb orb2" style="width:500px;height:500px;bottom:-130px;left:-130px;background:rgba(0,229,200,0.09);animation:drift 16s ease-in-out infinite alternate;animation-delay:-8s;"></div>
+
+<main>
+  <div class="logo">Out<span>pace</span></div>
+
+  <div class="sys-row">
+    <div class="sys-chip"><span class="dot dot-teal"></span>NEURAL NET</div>
+    <div class="sys-chip"><span class="dot dot-blue"></span>SERVERS AWAKE</div>
+    <div class="sys-chip"><span class="dot dot-purple"></span>AI CORE (UNSUPERVISED 😬)</div>
+    <div class="sys-chip"><span class="dot dot-orange"></span>INFRA</div>
+    <div class="sys-chip"><span class="dot dot-teal"></span>COFFEE: 94%</div>
+  </div>
+
+  <h1 class="headline" id="headline">
+    Something<br/><em>is building.</em>
+  </h1>
+
+  <p class="quip" id="quip">( we'd tell you what, but the AI went rogue )</p>
+
+  <div class="divider"></div>
+
+  <p class="banner">
+    This is just the beginning and Outpace may land anywhere.<span class="cursor"></span>
+    <strong>Anywhere. Yes, even there.</strong>
+  </p>
+
+  <div class="terminal" id="terminal">▶ <span>INITIALIZING</span>_</div>
+
+  <div class="contact">
+    <p>✦ Big ideas? Weird ideas? We love both. Write to us ✦</p>
+    <div class="contact-box">
+      <span class="contact-icon">✉</span>
+      <a href="mailto:outpaceio@gmail.com">outpaceio@gmail.com</a>
+    </div>
+  </div>
+</main>
+
+
+
+<footer>© 2026 Outpace &nbsp;·&nbsp; No servers were harmed in the making of this page &nbsp;·&nbsp; Probably.</footer>
+
+<script>
+const C = document.getElementById('masterCanvas');
+const ctx = C.getContext('2d');
+let W, H;
+
+function resize(){
+  W = C.width  = window.innerWidth;
+  H = C.height = window.innerHeight;
+  initAll();
+}
+
+const COL = {
+  teal:   '#00e5c8',
+  orange: '#ff4d1c',
+  blue:   '#0ea5e9',
+  purple: '#a855f7',
+  green:  '#22c55e',
+  gold:   '#f59e0b',
+};
+
+function hex(c, a){
+  const r=parseInt(c.slice(1,3),16),g=parseInt(c.slice(3,5),16),b=parseInt(c.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ══════════ 1. STARS ══════════ */
+let stars=[];
+function initStars(){
+  stars = Array.from({length:200},()=>({
+    x:Math.random()*W, y:Math.random()*H,
+    r:Math.random()*1.1, a:Math.random(),
+    speed:Math.random()*0.003+0.001
+  }));
+}
+function drawStars(t){
+  stars.forEach(s=>{
+    s.a = 0.2+0.6*Math.abs(Math.sin(t*s.speed+s.x));
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(200,220,255,${s.a*0.5})`;
+    ctx.fill();
+  });
+}
+
+/* ══════════ 2. SERVER RACKS (right side) ══════════ */
+const RACK_COUNT = 4;
+let serverLEDs=[];
+function initServers(){
+  serverLEDs=[];
+  for(let r=0;r<RACK_COUNT;r++){
+    for(let row=0;row<18;row++){
+      serverLEDs.push({
+        rack:r, row,
+        c:[COL.teal,COL.blue,COL.green,COL.orange][Math.floor(Math.random()*4)],
+        phase:Math.random()*Math.PI*2,
+        speed:Math.random()*2+1,
+      });
+    }
+  }
+}
+function drawServers(t){
+  const rackW = 54, rackH = H*0.55;
+  const startX = W - RACK_COUNT*(rackW+18) - 30;
+  const startY = (H - rackH)/2;
+
+  for(let r=0;r<RACK_COUNT;r++){
+    const rx = startX + r*(rackW+18);
+    ctx.strokeStyle='rgba(0,229,200,0.12)';
+    ctx.lineWidth=1;
+    ctx.strokeRect(rx, startY, rackW, rackH);
+
+    const units=18;
+    const uH = rackH/units;
+    for(let u=0;u<units;u++){
+      const uy=startY+u*uH;
+      ctx.strokeStyle='rgba(0,229,200,0.07)';
+      ctx.beginPath();ctx.moveTo(rx,uy);ctx.lineTo(rx+rackW,uy);ctx.stroke();
+
+      const led = serverLEDs.find(l=>l.rack===r&&l.row===u);
+      if(!led)continue;
+      const pulse = 0.4+0.6*Math.abs(Math.sin(t*0.001*led.speed+led.phase));
+
+      ctx.fillStyle=hex(led.c,0.06);
+      ctx.fillRect(rx+2,uy+2,rackW-4,uH-4);
+
+      ctx.beginPath();
+      ctx.arc(rx+10,uy+uH/2,3,0,Math.PI*2);
+      ctx.fillStyle=hex(led.c,pulse);
+      ctx.fill();
+
+      const barW=(rackW-22)*Math.abs(Math.sin(t*0.0008*led.speed+led.phase+1));
+      ctx.fillStyle=hex(led.c,0.25);
+      ctx.fillRect(rx+18,uy+uH*0.35,barW,uH*0.3);
+    }
+
+    ctx.fillStyle='rgba(0,229,200,0.3)';
+    ctx.font='8px Share Tech Mono,monospace';
+    ctx.textAlign='center';
+    ctx.fillText(`SRV-${String(r+1).padStart(2,'0')}`,rx+rackW/2,startY-6);
+  }
+
+  for(let r=0;r<RACK_COUNT-1;r++){
+    const x1=startX+r*(rackW+18)+rackW;
+    const x2=startX+(r+1)*(rackW+18);
+    const y=startY+rackH/2;
+    ctx.strokeStyle='rgba(0,229,200,0.1)';
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.stroke();
+  }
+}
+
+/* ══════════ 3. NEURAL NETWORK (left cluster) ══════════ */
+let neurons=[], synapses=[];
+function initNeural(){
+  neurons=[];synapses=[];
+  const layers=[3,6,8,6,4,2];
+  const clusterX=W*0.18, clusterW=W*0.22, clusterH=H*0.7, clusterY=H*0.15;
+  layers.forEach((count,li)=>{
+    const lx=clusterX+li*(clusterW/(layers.length-1));
+    for(let n=0;n<count;n++){
+      const ly=clusterY+(n+0.5)*(clusterH/count);
+      neurons.push({x:lx,y:ly,layer:li,idx:n,
+        r:4+Math.random()*2,
+        type:['input','hidden','hidden','hidden','hidden','output'][Math.min(li,5)],
+        fire:0, fireTimer:Math.random()*500,
+        phase:Math.random()*Math.PI*2,
+      });
+    }
+  });
+  neurons.forEach(a=>{
+    neurons.filter(b=>b.layer===a.layer+1).forEach(b=>{
+      if(Math.random()>0.25)
+        synapses.push({a,b,w:Math.random(),signal:null,phase:Math.random()*Math.PI*2,speed:Math.random()*0.4+0.2});
+    });
+  });
+}
+
+let signals=[];
+function drawNeural(t){
+  synapses.forEach(s=>{
+    const alpha=0.07+0.08*s.w;
+    const col = s.w>0.6 ? COL.teal : COL.blue;
+    ctx.strokeStyle=hex(col,alpha);
+    ctx.lineWidth=0.8;
+    ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+  });
+
+  signals.forEach((sig,i)=>{
+    sig.prog += sig.speed*0.003;
+    if(sig.prog>1){ signals.splice(i,1); return; }
+    const x=sig.ax+(sig.bx-sig.ax)*sig.prog;
+    const y=sig.ay+(sig.by-sig.ay)*sig.prog;
+    ctx.beginPath();
+    ctx.arc(x,y,2.5,0,Math.PI*2);
+    ctx.fillStyle=hex(sig.col,0.9);
+    ctx.fill();
+    ctx.beginPath();
+    const tx=sig.ax+(sig.bx-sig.ax)*Math.max(0,sig.prog-0.12);
+    const ty=sig.ay+(sig.by-sig.ay)*Math.max(0,sig.prog-0.12);
+    ctx.moveTo(tx,ty);ctx.lineTo(x,y);
+    ctx.strokeStyle=hex(sig.col,0.3);
+    ctx.lineWidth=1.5;ctx.stroke();
+  });
+
+  if(Math.random()<0.12){
+    const s=synapses[Math.floor(Math.random()*synapses.length)];
+    if(s) signals.push({ax:s.a.x,ay:s.a.y,bx:s.b.x,by:s.b.y,prog:0,speed:s.speed,col:Math.random()>0.5?COL.teal:COL.purple});
+  }
+
+  neurons.forEach(n=>{
+    n.fireTimer-=16;
+    if(n.fireTimer<0){n.fire=1;n.fireTimer=600+Math.random()*1200;}
+    n.fire=Math.max(0,n.fire-0.04);
+
+    const glow=n.fire>0.05;
+    const col={input:COL.blue,hidden:COL.teal,output:COL.orange}[n.type];
+    const pulse=0.5+0.5*Math.sin(t*0.002+n.phase);
+
+    if(glow){
+      const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*5);
+      g.addColorStop(0,hex(col,n.fire*0.7));
+      g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.x,n.y,n.r*5,0,Math.PI*2);ctx.fill();
+    }
+
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=hex(col,0.3+pulse*0.3+n.fire*0.4);
+    ctx.fill();
+    ctx.strokeStyle=hex(col,0.6+n.fire*0.4);
+    ctx.lineWidth=1;ctx.stroke();
+  });
+
+  ctx.font='8px Share Tech Mono,monospace';
+  ctx.textAlign='center';
+  ['INPUT','L1','L2','L3','L4','OUTPUT'].forEach((lbl,li)=>{
+    const layers=[3,6,8,6,4,2];
+    const clusterX=W*0.18, clusterW=W*0.22, clusterY=H*0.15;
+    const lx=clusterX+li*(clusterW/(layers.length-1));
+    ctx.fillStyle='rgba(0,229,200,0.25)';
+    ctx.fillText(lbl,lx,clusterY-12);
+  });
+
+  ctx.fillStyle='rgba(0,229,200,0.35)';
+  ctx.font='9px Share Tech Mono,monospace';
+  ctx.textAlign='center';
+  ctx.fillText('NEURAL NETWORK',W*0.18+W*0.11,H*0.15-26);
+}
+
+/* ══════════ 4. NETWORK TOPOLOGY (center-back) ══════════ */
+let netNodes=[], netEdges=[];
+function initNetwork(){
+  netNodes=[];netEdges=[];
+  const cx=W*0.5, cy=H*0.5;
+  const icons=['⬡','◈','▣','⬢','◉','▦'];
+  const types=['ROUTER','SWITCH','CDN','DNS','LOAD-BAL','FIREWALL'];
+  const colors=[COL.blue,COL.teal,COL.purple,COL.green,COL.gold,COL.orange];
+
+  netNodes.push({x:cx,y:cy,r:9,col:COL.teal,type:'HUB',icon:'◉',hub:true,phase:0,speed:0.5});
+
+  const r1=Math.min(W,H)*0.16;
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2;
+    netNodes.push({x:cx+Math.cos(a)*r1,y:cy+Math.sin(a)*r1,r:6,col:colors[i],type:types[i],icon:icons[i],hub:false,phase:i,speed:0.3+i*0.05,orbitAngle:a,orbitR:r1,orbiting:true});
+  }
+
+  const r2=Math.min(W,H)*0.28;
+  for(let i=0;i<10;i++){
+    const a=(i/10)*Math.PI*2+0.3;
+    netNodes.push({x:cx+Math.cos(a)*r2,y:cy+Math.sin(a)*r2,r:3.5,col:colors[i%6],type:'NODE',icon:'·',hub:false,phase:i*0.7,speed:0.15,orbitAngle:a,orbitR:r2,orbiting:true,small:true});
+  }
+
+  netNodes.slice(1,7).forEach(n=>netEdges.push({a:netNodes[0],b:n,col:n.col}));
+  for(let i=1;i<=6;i++) netEdges.push({a:netNodes[i],b:netNodes[(i%6)+1],col:COL.blue});
+  for(let i=0;i<6;i++) netEdges.push({a:netNodes[i+1],b:netNodes[7+(i*10/6|0)],col:netNodes[i+1].col});
+}
+
+let packets=[];
+function drawNetwork(t){
+  const cx=W*0.5,cy=H*0.5;
+
+  netNodes.forEach(n=>{
+    if(n.orbiting){
+      n.orbitAngle+=n.speed*0.002;
+      n.x=cx+Math.cos(n.orbitAngle)*n.orbitR;
+      n.y=cy+Math.sin(n.orbitAngle)*n.orbitR;
+    }
+  });
+
+  netEdges.forEach(e=>{
+    ctx.beginPath();ctx.moveTo(e.a.x,e.a.y);ctx.lineTo(e.b.x,e.b.y);
+    ctx.strokeStyle=hex(e.col,0.12);ctx.lineWidth=0.8;ctx.stroke();
+  });
+
+  packets.forEach((p,i)=>{
+    p.prog+=0.012;
+    if(p.prog>1){packets.splice(i,1);return;}
+    const x=p.ax+(p.bx-p.ax)*p.prog;
+    const y=p.ay+(p.by-p.ay)*p.prog;
+    ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);
+    ctx.fillStyle=hex(p.col,0.85);ctx.fill();
+  });
+
+  if(Math.random()<0.08&&netEdges.length){
+    const e=netEdges[Math.floor(Math.random()*netEdges.length)];
+    packets.push({ax:e.a.x,ay:e.a.y,bx:e.b.x,by:e.b.y,prog:0,col:e.col});
+  }
+
+  netNodes.forEach(n=>{
+    const pulse=0.5+0.5*Math.sin(t*0.002*n.speed+n.phase);
+    if(n.hub){
+      const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r*4);
+      g.addColorStop(0,hex(COL.teal,0.3*pulse));g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.x,n.y,n.r*4,0,Math.PI*2);ctx.fill();
+    }
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
+    ctx.fillStyle=hex(n.col,0.18+0.12*pulse);ctx.fill();
+    ctx.strokeStyle=hex(n.col,0.55+0.3*pulse);ctx.lineWidth=1.2;ctx.stroke();
+
+    if(!n.small){
+      ctx.fillStyle=hex(n.col,0.7);
+      ctx.font=`8px Share Tech Mono,monospace`;
+      ctx.textAlign='center';
+      ctx.fillText(n.type,n.x,n.y+n.r+10);
+    }
+  });
+
+  ctx.fillStyle='rgba(14,165,233,0.3)';
+  ctx.font='9px Share Tech Mono,monospace';
+  ctx.textAlign='center';
+  ctx.fillText('NETWORK TOPOLOGY',cx,cy-Math.min(W,H)*0.32);
+}
+
+/* ══════════ 5. INFRASTRUCTURE / CLOUD (top area) ══════════ */
+let infraNodes=[];
+function initInfra(){
+  infraNodes=[];
+  const labels=['CLOUD','CDN','DNS','LB','DB','CACHE','API','AUTH'];
+  const y=H*0.08;
+  labels.forEach((lbl,i)=>{
+    infraNodes.push({
+      x:W*0.1+i*(W*0.8/7),y,
+      lbl,col:[COL.blue,COL.teal,COL.purple,COL.gold,COL.green,COL.teal,COL.orange,COL.blue][i],
+      phase:i*0.8,connected:i<labels.length-1
+    });
+  });
+}
+function drawInfra(t){
+  ctx.strokeStyle='rgba(14,165,233,0.1)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(infraNodes[0].x,infraNodes[0].y);
+  infraNodes.slice(1).forEach(n=>ctx.lineTo(n.x,n.y));ctx.stroke();
+
+  infraNodes.forEach(n=>{
+    const pulse=0.4+0.5*Math.sin(t*0.0015+n.phase);
+    const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,20);
+    g.addColorStop(0,hex(n.col,0.2*pulse));g.addColorStop(1,'transparent');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(n.x,n.y,20,0,Math.PI*2);ctx.fill();
+
+    ctx.beginPath();ctx.arc(n.x,n.y,5,0,Math.PI*2);
+    ctx.fillStyle=hex(n.col,0.5+0.3*pulse);ctx.fill();
+    ctx.strokeStyle=hex(n.col,0.8);ctx.lineWidth=1;ctx.stroke();
+
+    ctx.fillStyle=hex(n.col,0.6);
+    ctx.font='7px Share Tech Mono,monospace';
+    ctx.textAlign='center';
+    ctx.fillText(n.lbl,n.x,n.y+16);
+  });
+
+  ctx.fillStyle='rgba(168,85,247,0.3)';
+  ctx.font='9px Share Tech Mono,monospace';
+  ctx.textAlign='left';
+  ctx.fillText('INFRASTRUCTURE LAYER',W*0.1,H*0.04);
+}
+
+/* ══════════ 6. AI BRAIN WAVES (bottom) ══════════ */
+function drawAIWaves(t){
+  const y=H*0.93;
+  const waves=[
+    {amp:12,freq:0.012,speed:0.7,col:COL.teal,phase:0},
+    {amp:8,freq:0.018,speed:1.1,col:COL.purple,phase:1.5},
+    {amp:15,freq:0.008,speed:0.4,col:COL.blue,phase:3},
+  ];
+  waves.forEach(w=>{
+    ctx.beginPath();
+    for(let x=0;x<W;x+=2){
+      const wy=y+Math.sin(x*w.freq+t*0.001*w.speed+w.phase)*w.amp;
+      x===0?ctx.moveTo(x,wy):ctx.lineTo(x,wy);
+    }
+    ctx.strokeStyle=hex(w.col,0.25);ctx.lineWidth=1.5;ctx.stroke();
+  });
+  ctx.fillStyle='rgba(0,229,200,0.25)';
+  ctx.font='8px Share Tech Mono,monospace';
+  ctx.textAlign='left';
+  ctx.fillText('AI SIGNAL PROCESSING',18,H*0.91);
+}
+
+/* ══════════ 7. FLOATING TECH LABELS ══════════ */
+let floatLabels=[];
+function initLabels(){
+  const words=['MACHINE LEARNING','DEEP LEARNING','GPT','TRANSFORMER','TENSOR','EPOCH','GRADIENT','LATENCY','THROUGHPUT','UPTIME 99.99%','IPv6','TCP/IP','TLS 1.3','KUBERNETES','DOCKER','TERRAFORM','CICD','MICROSERVICE','REST API','GRAPHQL'];
+  floatLabels=words.map(w=>({
+    text:w,
+    x:Math.random()*W,
+    y:Math.random()*H,
+    vy:(Math.random()-0.5)*0.18,
+    vx:(Math.random()-0.5)*0.1,
+    a:0.08+Math.random()*0.14,
+    col:[COL.teal,COL.blue,COL.purple,COL.green][Math.floor(Math.random()*4)],
+    size:7+Math.random()*4,
+  }));
+}
+function drawLabels(t){
+  floatLabels.forEach(l=>{
+    l.x+=l.vx;l.y+=l.vy;
+    if(l.x<-100)l.x=W+50;if(l.x>W+100)l.x=-50;
+    if(l.y<0)l.y=H;if(l.y>H)l.y=0;
+    ctx.fillStyle=hex(l.col,l.a);
+    ctx.font=`${l.size}px Share Tech Mono,monospace`;
+    ctx.textAlign='left';
+    ctx.fillText(l.text,l.x,l.y);
+  });
+}
+
+/* ══════════ 8. TECH SUPPORT CHAT BUBBLES ══════════ */
+let bubbles=[];
+const bubbleMsgs=['[TICKET #4291] RESOLVED','SLA: 99.98% ✓','INCIDENT CLOSED','PATCH DEPLOYED','ALERT: CPU 12%','RESPONSE: 42ms','BACKUP COMPLETE','SSL RENEWED'];
+function initBubbles(){
+  bubbles=bubbleMsgs.map((msg,i)=>({
+    msg,x:-200,y:H*0.72+i*22,a:0,active:false,timer:i*80+Math.random()*200
+  }));
+}
+function drawBubbles(t){
+  bubbles.forEach(b=>{
+    b.timer--;
+    if(b.timer<0&&!b.active){b.active=true;b.x=30;}
+    if(!b.active)return;
+    b.x=Math.min(b.x+1.2,60);
+    b.a=Math.min(b.a+0.02,0.45);
+
+    ctx.fillStyle=`rgba(0,229,200,${b.a*0.15})`;
+    const tw=ctx.measureText(b.msg).width+14;
+    roundRect(ctx,b.x,b.y-10,tw,18,3);ctx.fill();
+    ctx.strokeStyle=`rgba(0,229,200,${b.a})`;ctx.lineWidth=0.5;
+    roundRect(ctx,b.x,b.y-10,tw,18,3);ctx.stroke();
+
+    ctx.fillStyle=`rgba(0,229,200,${b.a*1.8})`;
+    ctx.font='7px Share Tech Mono,monospace';
+    ctx.textAlign='left';
+    ctx.fillText(b.msg,b.x+7,b.y+2);
+  });
+  ctx.fillStyle='rgba(34,197,94,0.25)';
+  ctx.font='8px Share Tech Mono,monospace';
+  ctx.textAlign='left';
+  ctx.fillText('TECH SUPPORT',18,H*0.66);
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);
+  ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);
+  ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+/* ══════════ INIT & LOOP ══════════ */
+function initAll(){
+  initStars();initServers();initNeural();initNetwork();initInfra();initLabels();initBubbles();
+  signals=[];packets=[];
+}
+
+let lastT=0;
+function loop(t){
+  ctx.clearRect(0,0,W,H);
+  drawStars(t);
+  drawLabels(t);
+  drawInfra(t);
+  drawServers(t);
+  drawNeural(t);
+  drawNetwork(t);
+  drawAIWaves(t);
+  drawBubbles(t);
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize',resize);
+resize();
+requestAnimationFrame(loop);
+
+/* ── TERMINAL TYPEWRITER (with humor) ── */
+const termLines=[
+  '▶ <span>BOOTING</span> OUTPACE SYSTEMS... please hold.',
+  '▶ <span>WARNING:</span> genius detected. proceeding anyway.',
+  '▶ <span>LOADING</span> NEURAL NETWORK LAYERS... 3 of 3. nice.',
+  '▶ <span>CONNECTING</span> GLOBAL INFRASTRUCTURE... yes, all of it.',
+  '▶ <span>AI CORE:</span> asked what it was building. it winked.',
+  '▶ <span>SYNCING</span> AI MODULES... they seem suspiciously confident.',
+  '▶ <span>COFFEE LEVELS:</span> critical. deploying backup caffeine.',
+  '▶ <span>STATUS:</span> all systems nominal. humans: debatable.',
+  '▶ <span>OUTPACE</span> IS BUILDING... (we checked, still building)',
+  '▶ <span>ETA:</span> soon™',
+];
+let tIdx=0;
+function nextLine(){
+  const el=document.getElementById('terminal');
+  if(!el)return;
+  el.innerHTML=termLines[tIdx%termLines.length];
+  tIdx++;
+  setTimeout(nextLine,2600);
+}
+setTimeout(nextLine,1800);
+
+/* ── QUIP ROTATOR ── */
+const quips=[
+  '( we\'d tell you what, but the AI went rogue )',
+  '( something so big it needs more RAM )',
+  '( currently arguing with a rubber duck )',
+  '( the servers are sweating )',
+  '( even our coffee is caffeinated )',
+  '( 73 tabs open. no regrets. )',
+  '( the neural net keeps asking existential questions )',
+  '( loading brilliance... please don\'t scroll away )',
+  '( our interns think it\'s a spaceship. they\'re not wrong )',
+  '( undefined is not a function, but Outpace is )',
+];
+let qIdx=0;
+function nextQuip(){
+  const el=document.getElementById('quip');
+  if(!el)return;
+  el.style.opacity='0';
+  setTimeout(()=>{
+    el.textContent=quips[qIdx%quips.length];
+    el.style.opacity='1';
+    qIdx++;
+  },400);
+  setTimeout(nextQuip,4000);
+}
+setTimeout(nextQuip,3000);
+
+/* ── HEADLINE EASTER EGG (click to surprise) ── */
+const headlineEggs=[
+  ['Something','is building.'],
+  ['Something','is caffeinated.'],
+  ['Someone','is debugging.'],
+  ['Nothing','just kidding.'],
+  ['Everything','is a feature.'],
+  ['Somewhere','a server blinked.'],
+  ['Something','went to prod.'],
+];
+let eggIdx=0;
+document.getElementById('headline').addEventListener('click',()=>{
+  eggIdx=(eggIdx+1)%headlineEggs.length;
+  const h=document.getElementById('headline');
+  h.style.opacity='0.3';
+  setTimeout(()=>{
+    h.innerHTML=`${headlineEggs[eggIdx][0]}<br/><em>${headlineEggs[eggIdx][1]}</em>`;
+    h.style.opacity='1';
+  },200);
+});
+document.getElementById('headline').style.cursor='pointer';
+
+// Cyber Teal — locked theme
+COL.teal   = '#00e5c8';
+COL.orange = '#ff4d1c';
+</script>
+</body>
+</html>
